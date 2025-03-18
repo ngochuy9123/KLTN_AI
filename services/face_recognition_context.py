@@ -202,28 +202,29 @@ class FaceRecognitionContext:
         return processed_image
     
 
-    def recognize_face_list_id(self,image,user_id):
+    def recognize_face_list_user(self,image,user_embeddings):
         try:
-            embeddings_data = self.load_embeddings_from_excel()
-            if not embeddings_data:
+            if not user_embeddings:
                 print("Không có dữ liệu embeddings để so sánh.")
-                return None
-            id_list = [entry["ID"] for entry in embeddings_data]
-            embed_list = np.array([entry["Embed"] for entry in embeddings_data])
+                return []
+
+            # Tách ID và embedding từ dữ liệu
+            id_list = [entry["ID"] for entry in user_embeddings]
+            embed_list = np.array([entry["Embed"] for entry in user_embeddings], dtype=np.float32)
             print(id_list)
-            processed_image = image
-            detected_faces = self.detection.detect(image)
+            processed_image = self.preprocessing.process(image)
+
+            # detected_faces = self.detection.detect(processed_image)
             
-            extracted_features = self.extraction.extract(detected_faces)
-            recognized_ids = []
-            for feature in extracted_features:
-                matched_id = self.recognition.recognize(feature, id_list, embed_list)
-                recognized_ids.append(matched_id)
-            print("Danh sách ID nhận diện:", recognized_ids)
+            # extracted_features = self.extraction.extract(detected_faces)
+            # recognized_ids = []
+            # for feature in extracted_features:
+            #     matched_id = self.recognition.recognize(feature, id_list, embed_list)
+            #     recognized_ids.append(matched_id)
+            # print("Danh sách ID nhận diện:", recognized_ids)
             
-            
+            return {"recognized_ids":id_list}
         except Exception as e:
             print("Error at Detect faces in FaceRecognitionContext")
             traceback.print_exc()
             
-        return processed_image

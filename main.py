@@ -107,32 +107,29 @@ async def check_user(user_ids: list[str], image: UploadFile = File(...), db: Ses
     """ Kiểm tra và thêm khuôn mặt vào database """
     try:
         user_ids = process_user_ids(user_ids)
-        if any(db.query(FaceEmbedding).filter(FaceEmbedding.id_user == uid).first() for uid in user_ids):
-            return recognize_existing_users(user_ids, image, db)
+        image = await image.read()
 
+        if any(db.query(FaceEmbedding).filter(FaceEmbedding.id_user == uid).first() for uid in user_ids):
+            print("Recognize Existing Users")
+            return await recognize_existing_users(user_ids, image, db)
+
+        print("Register New Users")
         return await register_new_users(user_ids, image, db)
     except Exception as e:
         print("Error in API Face Recognize:")
         traceback.print_exc()
         return {"error": str(e)}
 
-def recognize_existing_users(user_ids,image,db):
+async def recognize_existing_users(user_ids,image,db):
     try:
         user_data = get_user_embeddings_by_ids(user_ids,db)
-        return {"user_data": user_data}
+        print(type(user_data))
+        result = face_recognition.recognize_face_list_user(image,user_data)
+        return {"result": result}
     except Exception as e:
             print("Error in Recognize Existing Users")
             traceback.print_exc()
             return {"error": str(e)}
-
-async def register_new_users(user_ids,image,db):
-    # Save New Faces to Face_Embeddings
-    save_new_users(user_ids,db)
-
-    image_data = await image.read()
-    results = process_image_and_save_faces(image_data, db)
-
-    return {"user_list": user_ids, "faces": results,"status":"Pending Faces","message":"Register New Users"}
 
 def get_user_embeddings_by_ids(list_id, db):
     """ Truy vấn database để lấy embeddings của các user có ID trong list_id """
@@ -143,14 +140,22 @@ def get_user_embeddings_by_ids(list_id, db):
             .all()
         )
 
-        # Chuyển đổi dữ liệu từ database thành danh sách
-        result = [
-            {
-                "ID": user.id_user,
-                "Embed": np.frombuffer(user.embedding, dtype=np.float32) if user.embedding else None
-            }
-            for user in embeddings_data
-        ]
+        result = []
+        for user in embeddings_data:
+            embedding = user.embedding
+            
+            # Kiểm tra nếu embedding là bytes, thì dùng np.frombuffer
+            if isinstance(embedding, bytes):
+                embedding = np.frombuffer(embedding, dtype=np.float32).tolist()
+            # Nếu embedding đã là list hoặc ndarray, chuyển đổi sang list luôn
+            elif isinstance(embedding, np.ndarray):
+                embedding = embedding.tolist()
+            elif embedding is None:
+                embedding = None
+            else:
+                print(f"Cảnh báo: Dữ liệu embedding có kiểu không mong đợi: {type(embedding)}")
+
+            result.append({"ID": user.id_user, "Embed": embedding})
 
         return result
 
@@ -159,6 +164,15 @@ def get_user_embeddings_by_ids(list_id, db):
         traceback.print_exc()
         return {"error": str(e)}
 
+
+# Register New User
+async def register_new_users(user_ids,image,db):
+    # Save New Faces to Face_Embeddings
+    save_new_users(user_ids,db)
+
+    results = process_image_and_save_faces(image, db)
+
+    return {"user_list": user_ids, "faces": results,"status":"Pending Faces","id_user":None,"message":"Register New Users"}
 
 def process_user_ids(user_ids: list[str]) -> list[str]:
     """ Chuẩn hóa danh sách user_ids """
@@ -233,4 +247,22 @@ def process_image_and_save_faces(image_data: bytes, db: Session):
         return {"error": str(e)}
 
 
+@app.post("/update_embedding")
+async def update_embedding(pending_user_id: dict, db: Session = Depends(get_db)):
+    """ Kiểm tra và thêm khuôn mặt vào database """
+    try:
+        for pending_id,user_id in pending_user_id.items():
+            print(pending_id,user_id)
+            pending_face = db.query(PendingFace).filter(PendingFace.id == pending_id).first()
+            face_embedding = db.query(FaceEmbedding).filter(FaceEmbedding.id_user == user_id).first()
 
+            if(pending_face and face_embedding):
+                face_embedding.embedding = pending_face.embedding
+                face_embedding.score_detect = pending_face.score_detect
+                pending_face.status = "confirmed"
+                db.commit()
+        return "Hello World"
+    except Exception as e:
+        print("Error in API Face Recognize:")
+        traceback.print_exc()
+        return {"error": str(e)}
