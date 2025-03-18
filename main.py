@@ -116,12 +116,14 @@ async def check_user(user_ids: list[str], image: UploadFile = File(...), db: Ses
         # mot form response 
 
         for user_id in user_ids:
-            if any(db.query(FaceEmbedding).filter(FaceEmbedding.id_user == uid).first() for uid in user_ids):
+            existing_user = db.query(FaceEmbedding).filter(FaceEmbedding.id_user == user_id).first()
+            if existing_user:
                 print("Recognize Existing Users")
                 list_user_isd_existing.append(user_id)
             else:
                 print("Register New Users")
                 list_user_ids_register.append(user_id)
+
 
         # if any(db.query(FaceEmbedding).filter(FaceEmbedding.id_user == uid).first() for uid in user_ids):
         #     print("Recognize Existing Users")
@@ -133,9 +135,18 @@ async def check_user(user_ids: list[str], image: UploadFile = File(...), db: Ses
             result_register = await register_new_users(user_ids, image, db)
             result.append(result_register)
 
+        if(len(list_user_ids_register) > 0):
+            save_new_users(list_user_ids_register,db)
+
         if(len(list_user_isd_existing) > 0):
-            result_recognition = await recognize_existing_users(list_user_isd_existing,image,list_user_ids_register,db)
-            result.append(result_recognition)
+            result_faces, removed_faces = await recognize_existing_users(list_user_isd_existing,image,list_user_ids_register,db)
+            result.append(result_faces)
+
+            result_pending_faces = save_pending_faces(removed_faces,db)
+            result.append(result_pending_faces)
+
+
+
         return {"user_list": list_user_ids_register, "faces": result,"message":"Hello World"}
 
 
@@ -151,6 +162,7 @@ async def recognize_existing_users(user_ids,image_data,list_user_ids_register,db
         image = cv2.imdecode(np_arr, cv2.IMREAD_COLOR)
         print(type(user_data))
         result = face_recognition.recognize_face_list_user(image,user_data,list_user_ids_register)
+
         return result
     except Exception as e:
             print("Error in Recognize Existing Users")
@@ -273,6 +285,45 @@ def process_image_and_save_faces(image_data: bytes, db: Session):
         print("Error in Process Image and Save Face In Register New Users")
         traceback.print_exc()
         return {"error": str(e)}
+
+def save_pending_faces(list_pending_face, db):
+    try:
+        new_faces = []
+        results = []
+        for face in list_pending_face:
+            id_pending_face = str(uuid.uuid4())
+            bbox = json.dumps(face["BBox"])
+            score = face["Score_detect"]
+            embedding = np.array(face["embedding"], dtype=np.float32)
+
+            new_faces.append(
+                    PendingFace(
+                        id=id_pending_face,
+                        embedding=embedding,
+                        bbox=bbox,
+                        score_detect=score,
+                        status="pending",
+                        created_at=datetime.utcnow(),
+                        updated_at=datetime.utcnow()
+                    )
+                )
+            results.append({
+                    "id_pending_face": id_pending_face,
+                    "id_user":None,
+                    "BBox": face["BBox"],
+                    "Score": score,
+                    "Status": "pending"
+                })
+        if new_faces:
+            db.bulk_save_objects(new_faces)
+            db.commit()
+        return results
+    except Exception as e:
+        print("Error in Save Pending Faces")
+        traceback.print_exc()
+        return {"error": str(e)}
+
+
 
 
 @app.post("/update_embedding")

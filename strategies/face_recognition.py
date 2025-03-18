@@ -52,7 +52,7 @@ class FaceRecognitionByCosine(RecognitionStrategy):
         try:
             embedding = np.array(embed, dtype=np.float32).reshape(1, -1)  # Đảm bảo feature là numpy array
 
-            print("\n--- Nhận diện khuôn mặt bằng Approximate Nearest Neighbors (ANN) ---")
+            # print("\n--- Nhận diện khuôn mặt bằng Approximate Nearest Neighbors (ANN) ---")
             # print("Embedding đầu vào:", embedding)
 
             # Chuyển embed_list thành dạng numpy float32
@@ -65,13 +65,13 @@ class FaceRecognitionByCosine(RecognitionStrategy):
             # Tìm kiếm top-k kết quả gần nhất
             distances, indices = index.search(embedding, self.top_k)
 
-            print("Khoảng cách ANN:", distances)
-            print("Chỉ mục ANN:", indices)
+            # print("Khoảng cách ANN:", distances)
+            # print("Chỉ mục ANN:", indices)
 
             # Lấy ID tương ứng với index
             best_match_ids = [id_list[idx] for idx in indices[0] if idx < len(id_list)]
             result = [{"ID": best_match_ids[0], "Distance": float(distances[0][0])}]
-            print("ID phù hợp nhất:", best_match_ids)
+            # print("ID phù hợp nhất:", best_match_ids)
             return result if result else None
 
         except Exception as e:
