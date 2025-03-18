@@ -43,10 +43,6 @@ class FaceRecognitionContext:
         return processed_image
     
     # RECOGNIZE FACE
-    
-    
-    
-
 
     def get_features(self, image):
         try:
@@ -214,16 +210,28 @@ class FaceRecognitionContext:
             print(id_list)
             processed_image = self.preprocessing.process(image)
 
-            # detected_faces = self.detection.detect(processed_image)
+            detected_faces = self.detection.detect(processed_image)
             
-            # extracted_features = self.extraction.extract(detected_faces)
-            # recognized_ids = []
-            # for feature in extracted_features:
-            #     matched_id = self.recognition.recognize(feature, id_list, embed_list)
-            #     recognized_ids.append(matched_id)
-            # print("Danh sách ID nhận diện:", recognized_ids)
+            extracted_features = self.extraction.extract(detected_faces)
+
+            result_faces = []
+            for feature in extracted_features:
+                bbox = tuple(map(int, feature[0]))  # (x, y, w, h)
+                score_detect = float(feature[1])  # Độ tin cậy của nhận diện
+                embed = feature[2]  # Vector đặc trưng của khuôn mặt
+
+                matched_id = self.recognition.recognize(embed, id_list, embed_list)
+
+                result_faces.append({
+                "BBox": {"x": bbox[0], "y": bbox[1], "w": bbox[2], "h": bbox[3]},
+                "Score_detect": score_detect,
+                "ID_user": matched_id[0],
+                "status":"recognition",
+                "id_pending_face":None  # None nếu không nhận diện được
+            })
+            print("Danh sách ID nhận diện:", result_faces)
             
-            return {"recognized_ids":id_list}
+            return {"recognized_ids":result_faces}
         except Exception as e:
             print("Error at Detect faces in FaceRecognitionContext")
             traceback.print_exc()

@@ -48,9 +48,9 @@ class FaceRecognitionByCosine(RecognitionStrategy):
     def __init__(self,   top_k=1):
         self.top_k = top_k
 
-    def recognize(self, feature, id_list, embed_list):
+    def recognize(self, embed, id_list, embed_list):
         try:
-            embedding = np.array(feature[2], dtype=np.float32).reshape(1, -1)  # Đảm bảo feature là numpy array
+            embedding = np.array(embed, dtype=np.float32).reshape(1, -1)  # Đảm bảo feature là numpy array
 
             print("\n--- Nhận diện khuôn mặt bằng Approximate Nearest Neighbors (ANN) ---")
             # print("Embedding đầu vào:", embedding)

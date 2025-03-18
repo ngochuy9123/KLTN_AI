@@ -105,24 +105,47 @@ async def recognize_faces(file: UploadFile = File(...)):
 @app.post("/face_recognize")
 async def check_user(user_ids: list[str], image: UploadFile = File(...), db: Session = Depends(get_db)):
     """ Kiểm tra và thêm khuôn mặt vào database """
+    # Doi lam tung user
     try:
         user_ids = process_user_ids(user_ids)
         image = await image.read()
+        
+        result = []
+        list_user_ids_register = []
+        list_user_isd_existing = []
+        # mot form response 
 
-        if any(db.query(FaceEmbedding).filter(FaceEmbedding.id_user == uid).first() for uid in user_ids):
-            print("Recognize Existing Users")
-            return await recognize_existing_users(user_ids, image, db)
+        for user_id in user_ids:
+            if any(db.query(FaceEmbedding).filter(FaceEmbedding.id_user == uid).first() for uid in user_ids):
+                print("Recognize Existing Users")
+                list_user_isd_existing.append(user_id)
+            else:
+                print("Register New Users")
+                list_user_ids_register.append(user_id)
 
-        print("Register New Users")
-        return await register_new_users(user_ids, image, db)
+        # if any(db.query(FaceEmbedding).filter(FaceEmbedding.id_user == uid).first() for uid in user_ids):
+        #     print("Recognize Existing Users")
+        #     return await recognize_existing_users(user_ids, image, db)
+
+        # print("Register New Users")
+        # return await register_new_users(user_ids, image, db)
+        if(len(list_user_isd_existing) > 0):
+            result_recognition = await recognize_existing_users(list_user_isd_existing,image,db)
+            result.append(result_recognition)
+
+        return result
+
+
     except Exception as e:
         print("Error in API Face Recognize:")
         traceback.print_exc()
         return {"error": str(e)}
 
-async def recognize_existing_users(user_ids,image,db):
+async def recognize_existing_users(user_ids,image_data,db):
     try:
         user_data = get_user_embeddings_by_ids(user_ids,db)
+        np_arr = np.frombuffer(image_data, np.uint8)
+        image = cv2.imdecode(np_arr, cv2.IMREAD_COLOR)
         print(type(user_data))
         result = face_recognition.recognize_face_list_user(image,user_data)
         return {"result": result}
