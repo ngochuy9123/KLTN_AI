@@ -129,11 +129,14 @@ async def check_user(user_ids: list[str], image: UploadFile = File(...), db: Ses
 
         # print("Register New Users")
         # return await register_new_users(user_ids, image, db)
-        if(len(list_user_isd_existing) > 0):
-            result_recognition = await recognize_existing_users(list_user_isd_existing,image,db)
-            result.append(result_recognition)
+        if(len(list_user_isd_existing) == 0 and len(list_user_ids_register)>0):
+            result_register = await register_new_users(user_ids, image, db)
+            result.append(result_register)
 
-        return result
+        if(len(list_user_isd_existing) > 0):
+            result_recognition = await recognize_existing_users(list_user_isd_existing,image,list_user_ids_register,db)
+            result.append(result_recognition)
+        return {"user_list": list_user_ids_register, "faces": result,"message":"Hello World"}
 
 
     except Exception as e:
@@ -141,14 +144,14 @@ async def check_user(user_ids: list[str], image: UploadFile = File(...), db: Ses
         traceback.print_exc()
         return {"error": str(e)}
 
-async def recognize_existing_users(user_ids,image_data,db):
+async def recognize_existing_users(user_ids,image_data,list_user_ids_register,db):
     try:
         user_data = get_user_embeddings_by_ids(user_ids,db)
         np_arr = np.frombuffer(image_data, np.uint8)
         image = cv2.imdecode(np_arr, cv2.IMREAD_COLOR)
         print(type(user_data))
-        result = face_recognition.recognize_face_list_user(image,user_data)
-        return {"result": result}
+        result = face_recognition.recognize_face_list_user(image,user_data,list_user_ids_register)
+        return result
     except Exception as e:
             print("Error in Recognize Existing Users")
             traceback.print_exc()
@@ -195,7 +198,8 @@ async def register_new_users(user_ids,image,db):
 
     results = process_image_and_save_faces(image, db)
 
-    return {"user_list": user_ids, "faces": results,"status":"Pending Faces","id_user":None,"message":"Register New Users"}
+    # return {"user_list": user_ids, "faces": results,"status":"Pending Faces","message":"Register New Users"}
+    return results
 
 def process_user_ids(user_ids: list[str]) -> list[str]:
     """ Chuẩn hóa danh sách user_ids """
@@ -253,7 +257,8 @@ def process_image_and_save_faces(image_data: bytes, db: Session):
 
             results.append({
                 "id_pending_face": id_pending_face,
-                "BBox": bbox,
+                "id_user":None,
+                "BBox": face["BBox"],
                 "Score": score,
                 "Status": "pending"
             })

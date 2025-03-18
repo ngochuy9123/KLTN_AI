@@ -4,6 +4,7 @@ import numpy as np
 import traceback
 from openpyxl import load_workbook
 import json
+from collections import Counter
 
 class FaceRecognitionContext:
     def __init__(self, preprocessing, detection,extraction,annotation,recognition):
@@ -198,7 +199,7 @@ class FaceRecognitionContext:
         return processed_image
     
 
-    def recognize_face_list_user(self,image,user_embeddings):
+    def recognize_face_list_user(self,image,user_embeddings,list_user_ids_register):
         try:
             if not user_embeddings:
                 print("Không có dữ liệu embeddings để so sánh.")
@@ -220,18 +221,38 @@ class FaceRecognitionContext:
                 score_detect = float(feature[1])  # Độ tin cậy của nhận diện
                 embed = feature[2]  # Vector đặc trưng của khuôn mặt
 
-                matched_id = self.recognition.recognize(embed, id_list, embed_list)
+                matched_results  = self.recognition.recognize(embed, id_list, embed_list)
+                if matched_results:
+                    best_match_id = matched_results[0]["ID"]
+                    best_match_distance = matched_results[0]["Distance"]
+                else:
+                    best_match_id, best_match_distance = None, None
 
                 result_faces.append({
+                "id_pending_face":None,
+                "id_user": best_match_id,
                 "BBox": {"x": bbox[0], "y": bbox[1], "w": bbox[2], "h": bbox[3]},
                 "Score_detect": score_detect,
-                "ID_user": matched_id[0],
-                "status":"recognition",
-                "id_pending_face":None  # None nếu không nhận diện được
+                "Score_recognition":best_match_distance,
+                "status":"recognized",
             })
+                
             print("Danh sách ID nhận diện:", result_faces)
-            
-            return {"recognized_ids":result_faces}
+            id_min_score = {}
+            for face in result_faces:
+                user_id = face["id_user"]
+                if user_id:
+                    if user_id not in id_min_score or face["Score_recognition"] < id_min_score[user_id]["Score_recognition"]:
+                        id_min_score[user_id] = face
+
+            for face in result_faces:
+                user_id = face["id_user"]
+                if user_id and id_min_score.get(user_id) is not face:
+                    face["id_user"] = None
+                    face["status"] = "pending"
+
+            # return {"recognized_ids": result_faces}
+            return result_faces
         except Exception as e:
             print("Error at Detect faces in FaceRecognitionContext")
             traceback.print_exc()
