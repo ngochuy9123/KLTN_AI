@@ -140,10 +140,13 @@ async def check_user(user_ids: list[str], image: UploadFile = File(...), db: Ses
 
         if(len(list_user_isd_existing) > 0):
             result_faces, removed_faces = await recognize_existing_users(list_user_isd_existing,image,list_user_ids_register,db)
-            result.append(result_faces)
-
-            result_pending_faces = save_pending_faces(removed_faces,db)
-            result.append(result_pending_faces)
+            if not result_faces and not removed_faces:
+                result_register = await register_new_users(user_ids, image, db)
+                result.append(result_register)
+            else:
+                result.append(result_faces)
+                result_pending_faces = save_pending_faces(removed_faces,db)
+                result.append(result_pending_faces)
 
 
 
